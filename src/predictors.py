@@ -1,5 +1,5 @@
-from math import sqrt, exp
-from utils import dot_prod
+from math import log, sqrt, exp
+from utils import dot_prod, norm
 from datatypes import Label, DataPoint, BinaryClassifier
 from typing import Literal, Callable
 import random
@@ -46,6 +46,7 @@ class Perceptron(BinaryClassifier):
                     updated = True
                     self._update_w(xt, yt)
             if not updated:
+                print("Convergence")
                 break
 
     def predict(self, X: list[DataPoint]) -> list[Label]:
@@ -90,6 +91,7 @@ class SVM(BinaryClassifier):
         regularization: float = 0.0001,
         loss_func: Literal["hinge"] | Literal["logistic"] = "hinge",
         expansion: Callable[[DataPoint], DataPoint] | None = None,
+        random: random.Random = random.Random()
     ) -> None:
         self.epochs = epochs
         self.learning_rate = learning_rate
@@ -97,39 +99,49 @@ class SVM(BinaryClassifier):
         self.loss_func = loss_func
         self.expansion = expansion
         self.w = []
-        super().__init__()
+        self._curr_w = []
+        self._iter_count = 0
+        self._rand = random
 
     def fit(self, X: list[DataPoint], Y: list[Label], warm_start: bool = False) -> None:
+        size = len(X[0] if self.expansion is None else self.expansion(X[0]))
         if not warm_start:
-            size = len(X[0] if self.expansion is None else self.expansion(X[0]))
             self.w = [0.0] * size
-        prev_w = self.w.copy()
+            self._curr_w = [0.0] * size
+            self._iter_count = 0
+        cumulative_w = [0.0] * size
 
-        for t in range(self.epochs):
-            z = random.randint(0, len(X) - 1)
+        for t in range(self._iter_count, self._iter_count + self.epochs):
+            z = self._rand.randint(0, len(X) - 1)
+            new_X = X[z] if self.expansion is None else self.expansion(X[z])
 
             for i in range(len(X[z])):
-                new_X = X[z] if self.expansion is None else self.expansion(X[z])
-
                 if self.loss_func == "hinge":
                     loss_grad = (
                         -new_X[i] * float(Y[z])
-                        if float(Y[z]) * prev_w[i] * new_X[i] < 1
+                        if float(Y[z]) * self._curr_w[i] * new_X[i] < 1
                         else 0.0
                     )
                 else:
-                    loss_grad = -(1 / (1 + exp(Y[z] * prev_w[i] * new_X[i]))) * (
-                        Y[z] * new_X[i]
-                    )
+                    exponent = Y[z] * self._curr_w[i] * new_X[i]
+                    loss_grad = -Y[z] * new_X[i] / ((1 + exp(709 if exponent > 709 else exponent)) * log(2))
 
-                temp_w = prev_w[i] - (self.learning_rate / sqrt(t + 1)) * (
-                    loss_grad + self.regularization * prev_w[i]
+                self._curr_w[i]  = self._curr_w[i] - (self.learning_rate / sqrt(t + 1)) * (
+                    loss_grad + self.regularization * self._curr_w[i]
                 )
-                prev_w[i] = temp_w
-                self.w[i] += temp_w
+
+            w_norm = norm(self._curr_w)
+            for i in range(len(self._curr_w)):
+                self._curr_w[i] /= w_norm
+                cumulative_w[i] += self._curr_w[i]
+
+        self._iter_count += self.epochs
 
         for i in range(len(self.w)):
-            self.w[i] /= self.epochs
+            cumulative_w[i] /= self.epochs
+
+        for i in range(len(self.w)):
+            self.w[i] = ((self._iter_count - self.epochs) / self._iter_count) * self.w[i] + (self.epochs / self._iter_count) * cumulative_w[i]
 
     def predict(self, X: list[DataPoint]) -> list[Label]:
         X = X if self.expansion is None else [self.expansion(x) for x in X]
@@ -169,11 +181,11 @@ class KernelPerceptron(BinaryClassifier):
                 (xt, yt) for xt, yt in zip(X, Y) if self._compute_prediction(xt) != yt
             ]
 
-    def _compute_prediction(self, xt: DataPoint) -> float:
-        return sum(map(lambda z: z[1] * self.kernel(z[0], xt), self.S))
+    def _compute_prediction(self, xt: DataPoint) -> Label:
+        return 1 if sum(map(lambda z: z[1] * self.kernel(z[0], xt), self.S)) >= 0 else -1
 
     def predict(self, X: list[DataPoint]) -> list[Label]:
-        return [1 if self._compute_prediction(xt) >= 0 else -1 for xt in X]
+        return [self._compute_prediction(xt) for xt in X]
 
 
 class KernelSVM(BinaryClassifier):
@@ -205,23 +217,28 @@ class KernelSVM(BinaryClassifier):
         self.kernel = kernel
         self.epochs = epochs
         self.regularization = regularization
-        self.alpha: Counter[tuple[DataPoint, Label]] = Counter()
+        self.alpha: Counter[DataPoint] = Counter()
+        self.iter_count = 0
 
     def fit(self, X: list[DataPoint], Y: list[Label], warm_start: bool = False) -> None:
         if not warm_start:
+            self.iter_count = 0
             self.alpha = Counter()
-        for t in range(self.epochs):
+        for t in range(self.iter_count, self.iter_count + self.epochs):
             z = random.randint(0, len(X) - 1)
             pred = self._compute_prediction(X[z]) * Y[z] / (self.regularization * (t+1))
 
             if pred < 1:
-                self.alpha[(X[z], Y[z])] += 1
+                self.alpha[X[z]] += Y[z]
+        
+        self.iter_count += self.epochs
 
-    def _compute_prediction(self, xt: DataPoint):
+    def _compute_prediction(self, xt: DataPoint) -> float:
         return sum(map(
-            lambda e: e[1] * e[0][1] * self.kernel(xt, e[0][0]),
-            self.alpha.items()
+            lambda e: e[1] * self.kernel(xt, e[0]),
+            self.alpha.items(),
         ))
     
     def predict(self, X: list[DataPoint]) -> list[Label]:
         return [1 if self._compute_prediction(xt) > 0 else -1 for xt in X]
+

@@ -1,4 +1,5 @@
 from itertools import product
+from multiprocess.pool import Pool
 from typing import Type, Any
 
 from datatypes import BinaryClassifier, DataPoint, Label
@@ -9,7 +10,8 @@ def nested_cross_validation(
     X: list[DataPoint], 
     Y: list[Label], 
     K: int, 
-    params: dict[str, list[Any]]
+    params: dict[str, list[Any]],
+    log: bool = False
 ) -> tuple[dict[str, Any], float]:
     """
     Perform K-fold nested cross-validation
@@ -47,33 +49,32 @@ def nested_cross_validation(
 
     configs = [dict(zip(keys, e)) for e in prod]
 
-    globalBestLoss = float('inf')
-    globalBestParam = {}
+    best_loss = float('inf')
+    best_param = {}
 
     for i in range(K):
+        if log:
+            print("fold", i)
         trainX = sum(X_folds[:i] + X_folds[i+1:], start=[])
         trainY = sum(Y_folds[:i] + Y_folds[i+1:], start=[])
         testX = X_folds[i]
         testY = Y_folds[i]
-        localBestLoss = float('inf')
-        localBestParam = {}
-        for param in configs:
-            m = Model(**param)
-            loss = cross_validation(m, trainX, trainY, K)
-            if localBestLoss > loss:
-                localBestParam = param
-                localBestLoss = loss
+
+        with Pool() as pool:
+            losses = pool.map(lambda p: cross_validation(Model(**p), trainX, trainY, K), configs)
+
+        _, local_best_param = min(zip(losses, configs), key=lambda x: x[0])
         
-        m = Model(**localBestParam)
+        m = Model(**local_best_param)
         m.fit(trainX, trainY)
         predY = m.predict(testX)
         loss = zo_loss(testY, predY)
 
-        if loss < globalBestLoss:
-            globalBestLoss = loss
-            globalBestParam = localBestParam
+        if loss < best_loss:
+            best_loss = loss
+            best_param = local_best_param
     
-    return globalBestParam, globalBestLoss
+    return best_param, best_loss
 
 def cross_validation(
     model: BinaryClassifier,
