@@ -5,7 +5,9 @@ from typing import Sequence
 
 
 def gaussian(gamma: float) -> Callable[[Sequence[float], Sequence[float]], float]:
-    return lambda x, xp: exp(-norm((x[i] - xp[i] for i in range(len(x))))) ** 2 / (2 * gamma)
+    return lambda x, xp: exp(
+        -norm((x[i] - xp[i] for i in range(len(x)))) ** 2 / (2 * gamma)
+    )
 
 
 def polynomial(degree: int) -> Callable[[Sequence[float], Sequence[float]], float]:

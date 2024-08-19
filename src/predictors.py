@@ -27,15 +27,11 @@ class Perceptron(BinaryClassifier):
     def __init__(
         self,
         epochs: int = 1000,
-        expansion: Callable[[DataPoint], DataPoint] | None = None,
     ) -> None:
-        self.expansion = expansion
         self.epochs = epochs
         self.w = []
 
     def fit(self, X: list[DataPoint], Y: list[Label], warm_start: bool = False) -> None:
-        if self.expansion:
-            X = [self.expansion(x) for x in X]
         if not warm_start:
             self.w = [0.0] * len(X[0])
 
@@ -50,7 +46,6 @@ class Perceptron(BinaryClassifier):
                 break
 
     def predict(self, X: list[DataPoint]) -> list[Label]:
-        X = X if self.expansion is None else [self.expansion(x) for x in X]
         return [1 if dot_prod(xt, self.w) >= 0 else -1 for xt in X]
 
     def _update_w(self, xt: DataPoint, yt: Label):
@@ -90,41 +85,32 @@ class SVM(BinaryClassifier):
         learning_rate: float = 0.02,
         regularization: float = 0.0001,
         loss_func: Literal["hinge"] | Literal["logistic"] = "hinge",
-        expansion: Callable[[DataPoint], DataPoint] | None = None,
         random: random.Random = random.Random()
     ) -> None:
         self.epochs = epochs
         self.learning_rate = learning_rate
         self.regularization = regularization
         self.loss_func = loss_func
-        self.expansion = expansion
         self.w = []
         self._curr_w = []
         self._iter_count = 0
         self._rand = random
 
     def fit(self, X: list[DataPoint], Y: list[Label], warm_start: bool = False) -> None:
-        size = len(X[0] if self.expansion is None else self.expansion(X[0]))
         if not warm_start:
-            self.w = [0.0] * size
-            self._curr_w = [0.0] * size
+            self.w = [0.0] * len(X)
+            self._curr_w = [0.0] * len(X)
             self._iter_count = 0
-        cumulative_w = [0.0] * size
+        cumulative_w = [0.0] * len(X)
 
         for t in range(self._iter_count, self._iter_count + self.epochs):
             z = self._rand.randint(0, len(X) - 1)
-            new_X = X[z] if self.expansion is None else self.expansion(X[z])
 
             for i in range(len(X[z])):
                 if self.loss_func == "hinge":
-                    loss_grad = (
-                        -new_X[i] * float(Y[z])
-                        if float(Y[z]) * self._curr_w[i] * new_X[i] < 1
-                        else 0.0
-                    )
+                    loss_grad = self._hinge_gradient(Y, z, X, i)
                 else:
-                    exponent = Y[z] * self._curr_w[i] * new_X[i]
-                    loss_grad = -Y[z] * new_X[i] / ((1 + exp(709 if exponent > 709 else exponent)) * log(2))
+                    loss_grad = self._logistic_gradient(Y, z, X, i)
 
                 self._curr_w[i]  = self._curr_w[i] - (self.learning_rate / sqrt(t + 1)) * (
                     loss_grad + self.regularization * self._curr_w[i]
@@ -143,8 +129,19 @@ class SVM(BinaryClassifier):
         for i in range(len(self.w)):
             self.w[i] = ((self._iter_count - self.epochs) / self._iter_count) * self.w[i] + (self.epochs / self._iter_count) * cumulative_w[i]
 
+    def _hinge_gradient(self, Y, z, new_X, i):
+        return (
+            -new_X[i] * float(Y[z])
+            if float(Y[z]) * self._curr_w[i] * new_X[i] < 1
+            else 0.0
+        )
+
+    def _logistic_gradient(self, Y, z, new_X, i):
+        exponent = Y[z] * self._curr_w[i] * new_X[i]
+        loss_grad = -Y[z] * new_X[i] / ((1 + exp(709 if exponent > 709 else exponent)) * log(2))
+        return loss_grad
+
     def predict(self, X: list[DataPoint]) -> list[Label]:
-        X = X if self.expansion is None else [self.expansion(x) for x in X]
         return [1 if dot_prod(xt, self.w) >= 0 else -1 for xt in X]
 
 
@@ -172,14 +169,12 @@ class KernelPerceptron(BinaryClassifier):
         self.S: list[tuple[DataPoint, Label]] = []
 
     def fit(self, X: list[DataPoint], Y: list[Label], warm_start: bool = False) -> None:
-        if warm_start:
-            self.S.extend(
-                [(xt, yt) for xt, yt in zip(X, Y) if self._compute_prediction(xt) != yt]
-            )
-        else:
-            self.S = [
-                (xt, yt) for xt, yt in zip(X, Y) if self._compute_prediction(xt) != yt
-            ]
+        if not warm_start:
+            self.S = []
+        
+        for xt, yt in zip(X, Y):
+            if yt != self._compute_prediction(xt):
+                self.S.append((xt, yt))
 
     def _compute_prediction(self, xt: DataPoint) -> Label:
         return 1 if sum(map(lambda z: z[1] * self.kernel(z[0], xt), self.S)) >= 0 else -1
@@ -204,9 +199,9 @@ class KernelSVM(BinaryClassifier):
 
     Attributes
     ----------
-    alpha: Counter[tuple[DataPoint, Label]]
-        A counter of couples (DataPoint, Label) incremented during the
-        training phase when a mistake is found 
+    alpha: Counter[DataPoint]
+        A counter associated to data points incremented during the
+        training phase when a mistake is found
     """
     def __init__(
         self,
