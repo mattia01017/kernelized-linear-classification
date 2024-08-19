@@ -98,19 +98,19 @@ class SVM(BinaryClassifier):
 
     def fit(self, X: list[DataPoint], Y: list[Label], warm_start: bool = False) -> None:
         if not warm_start:
-            self.w = [0.0] * len(X)
-            self._curr_w = [0.0] * len(X)
+            self.w = [0.0] * len(X[0])
+            self._curr_w = [0.0] * len(X[0])
             self._iter_count = 0
-        cumulative_w = [0.0] * len(X)
+        cumulative_w = [0.0] * len(X[0])
 
         for t in range(self._iter_count, self._iter_count + self.epochs):
             z = self._rand.randint(0, len(X) - 1)
 
             for i in range(len(X[z])):
                 if self.loss_func == "hinge":
-                    loss_grad = self._hinge_gradient(Y, z, X, i)
+                    loss_grad = self._hinge_gradient(X[z][i], Y[z], i)
                 else:
-                    loss_grad = self._logistic_gradient(Y, z, X, i)
+                    loss_grad = self._logistic_gradient(X[z][i], Y[z], i)
 
                 self._curr_w[i]  = self._curr_w[i] - (self.learning_rate / sqrt(t + 1)) * (
                     loss_grad + self.regularization * self._curr_w[i]
@@ -129,16 +129,16 @@ class SVM(BinaryClassifier):
         for i in range(len(self.w)):
             self.w[i] = ((self._iter_count - self.epochs) / self._iter_count) * self.w[i] + (self.epochs / self._iter_count) * cumulative_w[i]
 
-    def _hinge_gradient(self, Y, z, new_X, i):
+    def _hinge_gradient(self, x, y, i):
         return (
-            -new_X[i] * float(Y[z])
-            if float(Y[z]) * self._curr_w[i] * new_X[i] < 1
+            -x * float(y)
+            if float(y) * self._curr_w[i] * x < 1
             else 0.0
         )
 
-    def _logistic_gradient(self, Y, z, new_X, i):
-        exponent = Y[z] * self._curr_w[i] * new_X[i]
-        loss_grad = -Y[z] * new_X[i] / ((1 + exp(709 if exponent > 709 else exponent)) * log(2))
+    def _logistic_gradient(self, x, y, i):
+        exponent = y * self._curr_w[i] * x
+        loss_grad = -y * x / ((1 + exp(709 if exponent > 709 else exponent)) * log(2))
         return loss_grad
 
     def predict(self, X: list[DataPoint]) -> list[Label]:
