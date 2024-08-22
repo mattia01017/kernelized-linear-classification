@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Literal, Sequence
+from typing import Literal
+import json
 
 Label = Literal[1] | Literal[-1]
-DataPoint = Sequence[float]
+DataPoint = tuple[float]
 
 
 class BinaryClassifier(ABC):
@@ -49,3 +50,8 @@ class BinaryClassifier(ABC):
             the list of predicted labels
         """
         pass
+
+    def dump(self, path: str):
+        data = {k:v for k, v in self.__dict__.items() if not k.startswith("_")}
+        with open(path, "w") as f:
+            json.dump(data, f)

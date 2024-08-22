@@ -1,6 +1,5 @@
 venv/
 .vscode/
-*.csv
 __pycache__/
 *.aux
 *.log

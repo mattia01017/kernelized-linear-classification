@@ -1,9 +1,32 @@
 from itertools import product
 from multiprocess.pool import Pool
-from typing import Type, Any
+from typing import Callable, Type, Any
 
 from datatypes import BinaryClassifier, DataPoint, Label
-from utils import zo_loss
+from utils import remove_outliers, zo_loss, ZScore
+
+def grid_search_cv(
+    Model: Type[BinaryClassifier], 
+    X: list[DataPoint], 
+    Y: list[Label], 
+    K: int, 
+    params: dict[str, list[Any]],
+    Scaler: Type[ZScore] | None = None,
+    extraction: Callable[[DataPoint], DataPoint] | None = None,
+) -> tuple[dict[str, Any], float]:
+    prod = list(product(*params.values()))
+    keys = params.keys()
+
+    configs = [dict(zip(keys, e)) for e in prod]
+
+    with Pool() as pool:
+        losses = pool.map(
+            lambda p: cross_validation(Model(**p), X, Y, K, Scaler, extraction),
+            configs
+        )
+    
+    return min(zip(configs, losses), key=lambda x: x[1])
+    
 
 def nested_cross_validation(
     Model: Type[BinaryClassifier], 
@@ -11,8 +34,10 @@ def nested_cross_validation(
     Y: list[Label], 
     K: int, 
     params: dict[str, list[Any]],
-    log: bool = False
-) -> tuple[dict[str, Any], float]:
+    Scaler: Type[ZScore] | None = None,
+    extraction: Callable[[DataPoint], DataPoint] | None = None,
+    log: bool = False,
+) -> float:
     """
     Perform K-fold nested cross-validation
 
@@ -49,38 +74,36 @@ def nested_cross_validation(
 
     configs = [dict(zip(keys, e)) for e in prod]
 
-    best_loss = float('inf')
-    best_param = {}
-
+    loss = 0
     for i in range(K):
         if log:
-            print("fold", i)
+            print("fold", i, end="\r")
         trainX = sum(X_folds[:i] + X_folds[i+1:], start=[])
         trainY = sum(Y_folds[:i] + Y_folds[i+1:], start=[])
         testX = X_folds[i]
         testY = Y_folds[i]
 
         with Pool() as pool:
-            losses = pool.map(lambda p: cross_validation(Model(**p), trainX, trainY, K), configs)
+            losses = pool.map(lambda p: cross_validation(Model(**p), trainX, trainY, K, Scaler, extraction), configs)
 
         _, local_best_param = min(zip(losses, configs), key=lambda x: x[0])
         
         m = Model(**local_best_param)
         m.fit(trainX, trainY)
         predY = m.predict(testX)
-        loss = zo_loss(testY, predY)
+        loss += zo_loss(testY, predY)
 
-        if loss < best_loss:
-            best_loss = loss
-            best_param = local_best_param
-    
-    return best_param, best_loss
+    if log:
+        print()
+    return loss / K
 
 def cross_validation(
     model: BinaryClassifier,
     X: list[DataPoint],
     Y: list[Label],
-    K: int
+    K: int,
+    Scaler: Type[ZScore] | None = None,
+    extraction: Callable[[DataPoint], DataPoint] | None = None,
 ) -> float:
     """
     Perform external cross-validation
@@ -111,6 +134,17 @@ def cross_validation(
         trainY = sum(Y_folds[:i] + Y_folds[i+1:], start=[])
         testX = X_folds[i]
         testY = Y_folds[i]
+
+        if Scaler:
+            trainX, trainY = remove_outliers(trainX, trainY)
+            scaler = Scaler()
+            trainX = scaler.fit_transform(trainX)
+            testX = scaler.transform(testX)
+        
+        if extraction:
+            trainX = [extraction(x) for x in trainX]
+            testX = [extraction(x) for x in testX]
+
         model.fit(trainX, trainY)
         predY = model.predict(testX)
         loss_sum += zo_loss(testY, predY)
@@ -122,7 +156,6 @@ def _split(values: list, K: int):
 
     remaining = len(values) % K
 
-    if remaining != 0:
-        for i in range(remaining):
-            folds[i].append(values[-1-i])
+    for i in range(remaining):
+        folds[i].append(values[-1-i])
     return folds

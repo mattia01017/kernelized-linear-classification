@@ -1,0 +1,1 @@
+{"params": {"epochs_per_step": 10000, "learning_rate": 1, "regularization": 0.001}, "loss": 0.27769999999999995}
