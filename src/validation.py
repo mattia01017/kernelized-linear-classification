@@ -14,6 +14,38 @@ def grid_search_cv(
     Scaler: Type[ZScore] | None = None,
     extraction: Callable[[DataPoint], DataPoint] | None = None,
 ) -> tuple[dict[str, Any], float]:
+    """
+    Perform a grid search, evaluating models through cross validation
+
+    Parameters
+    ----------
+    Model: Type[BinaryClassifier]:
+        the model type to build and evaluate
+    X: list[DataPoint]:
+        The data points
+    Y: list[Label]: 
+        The labels associated to data points
+    K: int:
+        The number of folds to use for cross validation
+    params: dict[str, list[Any]]:
+        pairs of parameter name and list of values. The search evauluate
+        each value of the cartesian product among the parameter values lists.
+        Example: given { "a": [1,2], "b": [3,4], "c": [5] }, the evaluation will be performed
+        considering models with the following parameters:
+        a=1, b=3, c=5
+        a=1, b=4, c=5
+        a=2, b=3, c=5
+        a=2, b=4, c=5
+    Scaler: Type[ZScore] | None, default=None,
+        The scaler to construct and apply on data for normalization/standardization
+    extraction: Callable[[DataPoint], DataPoint], default=None
+        The function used to map data points in different feature spaces
+    
+    Returns
+    -------
+    tuple[dict[str, Any], float]
+        key value pairs respresenting the best parameters configuration found and the loss.
+    """
     prod = list(product(*params.values()))
     keys = params.keys()
 
@@ -60,11 +92,15 @@ def nested_cross_validation(
         a=1, b=4, c=5
         a=2, b=3, c=5
         a=2, b=4, c=5
+    Scaler: Type[ZScore] | None, default=None,
+        The scaler to construct and apply on data for normalization/standardization
+    extraction: Callable[[DataPoint], DataPoint], default=None
+        The function used to map data points in different feature spaces
 
     Returns
     -------
-    tuple[dict[str, Any], float]
-        the best parameters configuration and the relative 0-1 loss
+    float
+        the average losses 
     """
     X_folds = _split(X, K)
     Y_folds = _split(Y, K)
@@ -118,6 +154,10 @@ def cross_validation(
         The list of labels
     K: int
         the number of folds
+    Scaler: Type[ZScore] | None, default=None,
+        The scaler to construct and apply on data for normalization/standardization
+    extraction: Callable[[DataPoint], DataPoint], default=None
+        The function used to map data points in different feature spaces
 
     Returns
     -------

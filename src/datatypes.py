@@ -52,6 +52,36 @@ class BinaryClassifier(ABC):
         pass
 
     def dump(self, path: str):
+        """
+        Dump to file public attributes of the predictor in JSON format
+
+        Parameters
+        ----------
+        path: str
+            The path of the file to write
+        
+        Returns
+        -------
+        None
+        """
         data = {k:v for k, v in self.__dict__.items() if not k.startswith("_")}
         with open(path, "w") as f:
             json.dump(data, f)
+    
+
+    def load(self, path: str):
+        """
+        Dump from file attributes of the predictor in JSON format
+
+        Parameters
+        ----------
+        path: str
+            The path of the file to read
+        
+        Returns
+        -------
+        None
+        """
+        with open(path) as f:
+            data = json.load(f)
+        self.__dict__.update(data)

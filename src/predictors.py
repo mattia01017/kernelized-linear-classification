@@ -15,8 +15,6 @@ class Perceptron(BinaryClassifier):
     epochs_per_step: int
         the maximum number of scans of the entire dataset in a fit method call
     expansion: Callable[[DataPoint], DataPoint], default=None
-        a function that perform feature expansion. It's applied before training 
-        and before predicting. If None, no expansion is applied
 
     Attributes
     ----------
