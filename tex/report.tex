@@ -1,5 +1,8 @@
 \documentclass{article}
 \usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage[a4paper]{geometry}
+
 
 \author{Mattia Lecchi (964860)}
 \date{\today}
@@ -9,50 +12,182 @@
 \begin{document}
 \maketitle
 
-\section{Dataset}
+\section{Preprocessing}
+\label{sec:preprocessing}
 The given dataset is made of 10000 examples. We first apply an affine mapping on data points by adding a new feature and setting it to 1:
 \begin{equation}
 	x = (x_1, ..., x_d) \rightarrow x'=(1, x_1, ..., x_d)
 \end{equation}
-This allow us to include the bias term in the weight vector and learn it like every other weight. After that, the dataset is split in a training set of 7000 examples and a test set of 3000 examples.
+This allow us to include the bias term in the weight vector of the linear predictors and learn it like every other weight component. After that, the dataset is split in a training set of 7000 examples and a test set of 3000 examples, ensuring that the number of positive and negative entries is balanced in both sets.
+The next step is to apply z-score to obtain a standardization of the provided dataset through the following formula:
+\begin{equation}
+	X_i' = \frac{X_i - \mu_i}{\sigma_i}
+\end{equation}
+for every feature $i$. $\mu_i$ and $\sigma_i$ are the mean and the standard deviation on feature $i$, respectively; they are computed considering only the training set, as the test set should represent unknown data.
 
 \section{Perceptron}
 
+Figure \ref{fig:perceptron} shows performances of the perceptron algorithm on training and test sets, based on the number of epochs. 
+The errors on both sets float around 0.36 without lowering; looking at this results, the dataset is probably non linearly separable. With a non linearly separable training set, the perceptron can't terminate.
+
 \begin{figure}
 	\centering
-	\includegraphics[width=0.8\columnwidth]{../plots/perceptron.png}
+	\includegraphics[width=0.5\columnwidth]{../plots/perceptron.png}
 	\caption{Training and test errors of the perceptron depending on the number of epochs}
 	\label{fig:perceptron}
 \end{figure}
 
-Figure \ref{fig:perceptron} show performances of perceptron aglorithm on the training and test set, based on the number of epochs. The errors on both sets are quite stable around 0.28, but it shows slightly better predictions on the very early epochs, while the error increases with the number of epochs. Looking at this results, the dataset is probably non linearly separable, as the algorithm didn't converge during the experiments and the error floats around the same values.
-
 \paragraph{Quadratic feature extraction}
-We try to improve the quality of predictions applying quadratic feature extraction, at the cost of a computationally more intensive predictor: starting from 11 feature, the quadratic feature extraction generate data points of 66 features. 
-Figure \ref{fig:quad_perceptron} shows the achieved errors. In this case, despite certain spikes, the relationship between epochs and error is more evident, but it's also visible how increasing the number of epochs after a certain point brings the model to be less stable.
+An attempt to improve the quality of predictions can be made by applying quadratic feature extraction, at the cost of a computationally more intensive predictor: starting from 10 feature, the quadratic feature extraction generate data points of 66 features, including the feature for bias learning. 
+Figure \ref{fig:quad_perceptron} shows the achieved errors, which are clearly lower than the ones seen above.
 
 \begin{figure}
 	\centering
-	\includegraphics[width=0.8\columnwidth]{../plots/quad_perceptron.png}
+	\includegraphics[width=0.5\columnwidth]{../plots/quad_perceptron.png}
 	\caption{Training and test errors of the perceptron with quadratic feature extraction depending on the number of epochs}
 	\label{fig:quad_perceptron}
 \end{figure}
 
-\paragraph{Kernel trick}
-There's room for improvement by applying a polynomial extraction of higher degree, although the training tends to be computationally intractable even for relatively small degrees and training set, as the number of features explodes even with a relatively small degree: considering 10 features, with a degree of 3, the number of features would be 286, while with degree set to 4 the number of features would be 1001.
+\subsection{Kernel perceptron}
+There may be room for improvement by applying a polynomial extraction of higher degree, but the training tends to be computationally intensive even for relatively small degrees and training sets, as the number of features explodes: considering 10 features, with a degree of 3, the number of features would be 286, while with a degree set to 4 the number of features would be 1001. Kernel methods can be used to overcome this problem. 
 
-Kernel methods can be used to overcome this problem.
-...
-...
+\paragraph{Polynomial kernel}
+Figure \ref{subfig:kpoly_perceptron} shows errors using the kernel perceptron with different degrees; the quality of predictions is far worse than the perceptron with quadratic feature expansion. Furthermore, predictors that used an odd degree performed worse than the others, also, higher degrees increase the gap between the training and the test error, suggesting that a large degree leads the model to overfit. The kernel perceptron can be forced to make more than one scan on the dataset: instead of adding to a set $S$ the index of examples misclassified during the training, a counter $\alpha_s$ of mistakes is kept for each example $s$ and used as a multiplier. So instead of computing the following function:
+\begin{equation}
+	h(x) = sgn\left(\sum_{s\in S} y_s K(x_s, x) \right)
+\end{equation}
+we compute:
+\begin{equation}
+	h(x) = sgn\left(\sum_{s=0}^{|X|} \alpha_s y_s K(x_s,x)\right)
+\end{equation}
+to perform a prediction. To find a good degree, values can be compared using cross validation: in particular, values between 2 and 10 are used, considering for now only one iteration of kernel perceptron to avoid long times. The best performing degree found for a single iteration of the polynomial kernel perceptron is 4, with a loss of 0.1427. To enhance prediction quality, the number of epochs is increased to 20, obtaining the errors shown in figure \ref{subfig:kpoly2_perceptron}
 
 \begin{figure}
 	\centering
-	\includegraphics[width=0.8\columnwidth]{../plots/kpoly_perceptron.png}
-	\caption{Training and test errors of the perceptron with quadratic feature extraction depending on the number of epochs}
+	\begin{subfigure}{0.45\columnwidth}
+		\centering
+		\includegraphics[width=\columnwidth]{../plots/kpoly_perceptron.png}
+		\caption{}
+		\label{subfig:kpoly_perceptron}
+	\end{subfigure}
+	\begin{subfigure}{0.45\columnwidth}
+		\centering
+		\includegraphics[width=\columnwidth]{../plots/kpoly2_perceptron.png}
+		\caption{}
+		\label{subfig:kpoly2_perceptron}
+	\end{subfigure}
+	\caption{Tuning phases of the perceptron with polynomial kernel. Figure (a) shows an initial search considering degrees from 2 to 10, figure (b) the plot with the error running more epochs on the best selected value using grid search with cross validation, that is with degree 4}
 	\label{fig:kpoly_perceptron}
 \end{figure}
+\paragraph{Gaussian kernel}
+To initially tune the $\gamma$ hyperparameter of the Gaussian kernel, the values picked are in the interval , obtaining results shown in figure \ref{subfig:kgauss_perceptron}. The plot clearly shows how values lower than 1 bring the model to overfit, while values higher than 10 show underfitting. 
 
+The most promising interval is explored performing cross validation considering equidistant values of $\gamma$ in the interval [0.5, 5]. The best value observed during the search is $\gamma=1.2$ with a loss of 0.1245, a further improvement can be achieved by running the multiple epochs version of the kernel perceptron. The error obtained running up to 10 epochs of perceptron with Gaussian kernel and the selected value of $\gamma$ is shown in figure \ref{subfig:kgauss2_perceptron}.
 
+\begin{figure}
+	\centering
+	\begin{subfigure}{0.45\columnwidth}
+		\centering
+		\includegraphics[width=\columnwidth]{../plots/kgauss_perceptron.png}
+		\caption{}
+		\label{subfig:kgauss_perceptron}
+	\end{subfigure}
+	\begin{subfigure}{0.45\columnwidth}
+		\centering
+		\includegraphics[width=\columnwidth]{../plots/kgauss2_perceptron.png}
+		\caption{}
+		\label{subfig:kgauss2_perceptron}
+	\end{subfigure}
+	\caption{Tuning phases of the perceptron with Gaussian kernel. Figure (a) shows an initial search considering a geometric sequence, figure (b) the plot with the error running more epochs on the best selected value using grid search with cross validation, that is $\gamma=1.2$}
+	\label{fig:kgauss_perceptron}
+\end{figure}
 
+\section{Support vector machines}
+Training SVM can be more challenging due to the presence of some hyperparameters to tune.
+For this reason, grid search is performed on subsets of hyperparameters using cross validation for model evaluation. The number of folds in which the data is divided is 5. 
+The dataset input for the validation is the one before preprocessing; a preprocessing step as described in section \ref{sec:preprocessing} is applied at every iteration of the cross validation, taking into account the division between training and test set for the considered fold, always assuming that the content of the test set is unknown. 
+In this section, grid search is applied twice: the first time it considers a large interval of values of the hyperparameters. In particular, the epochs considered for tuning are 1000, 5000, 10000, 15000 and the learning rate $\eta$ and regularization terms $\lambda$ are from a geometric sequence of powers of $10$ in range $[10^{-3}, 10^2]$. 
+The second run of grid search is used to explore the neighborhood of the promising values found in the first iteration.
+
+Starting with the SVM trained with Pegasos, the best loss obtained through grid search in the first iteration is 0.278, with 15000 epochs, $\eta=1$ and $\lambda=0.001$. 
+The obtained predictor is already substantially better than the classifier obtained through the perceptron described in the previous section. 
+For the second iteration, the considered numbers of epochs are 15000, 18000 and 20000, the $\eta$s are 10 equidistant values in the range [0.5, 5], while the considered interval for the $\lambda$ is [0.0005, 0.005]. 
+This time, the selected number of epochs is 15000, $\eta=2$ and $\lambda=0.002$, with an error of 0.276.
+
+\paragraph{Quadratic extraction}
+As with the perceptron, the results can be improved by using polynomial feature expansion of degree 2. For parameter tuning, The grid search found in the first iteration 15000 as the number of iterations, $\eta=1$ and $\lambda=0.001$; the obtained loss is 0.0958. Continuing the exploration, the second run of grid search is performed with numbers of iterations equal to 15000, 18000 and 20000, for the $\eta$ 10 equidistant values in range [3, 30] are considered and for $\lambda$ 10 equidistant values in the interval [0.0008, 0.008]. With this second search, a non-negligible improvement is found, with a loss of 0.0796; the selected number of iterations is 20000, $\eta=2.1$ and $\lambda=0.0008$. Looking at figure \ref{fig:quad_svm}, it can be seen that the curve of the errors tend to (almost) nullify its steepness after a much greater number of iteration with respect to the predictor on the non-expanded dataset.
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\columnwidth]{../plots/svm.png}
+	\caption{Training and test errors on an instance of SVM with $\eta=2$ and $\lambda=0.002$}
+	\label{fig:svm}
+\end{figure}
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\columnwidth]{../plots/quad_svm.png}
+	\caption{Training and test errors on an instance of SVM with quadratic feature extraction with  $\eta=2.1$ and $\lambda=0.0008$}
+	\label{fig:quad_svm}
+\end{figure}
+
+\subsection{Regularized logistic classification}
+The hinge loss can be replaced by the logistic loss to obtain a regularized logistic classifier. The evaluation in the first run gave a loss of 0.2799 with 15000 iterations, 100 as $\eta$ and 0.001 as $\lambda$. After that, the neighborhood of the obtained hyperparameters is explored: the new grid search is performed using 15000, 18000 and 20000 as iteration counts, 10 equidistant values in the interval [30, 300] are used for $\eta$ and 10 equidistant values in the interval [0.0005, 0.005] for $\lambda$. the best value found this time is 0.2776 with 20000 iterations, $\eta=30$ and $\lambda=0.0015 $. The errors on an instance increasing the number of epochs is shown in figure \ref{fig:svm_log}.
+
+\paragraph{Quadratic extraction}
+Applying grid search and cross validation with the usual parameters in the first iteration, the regularized logistic classifier with polynomial extraction of degree 2 gives 0.0976 as loss with 15000 iterations, $\eta=1$ and $\lambda=0.001$. Next, a grid search is performed with 15000, 18000, 20000 iterations, 10 equidistant values in the interval [0.3, 3] are used as $\eta$ and 10 equidistant values in the interval [0.0005, 0.005] as $\lambda$, obtaining a loss of 0.076 with a $\eta=2.7$, a $\lambda=0.0005$ and 20000 iterations. As in the case of SVM with hinge loss, quadratic extraction seems to require an higher number of iteration to stabilize around a certain value of error. The behavior of errors on a trained instance is shown in figure \ref{fig:quad_svm_log}.
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\columnwidth]{../plots/svm_log.png}
+	\caption{Training and test errors on an instance of regularized logistic classifier with quadratic feature extraction with 30 as $\eta$ and $\lambda$ equal to 0.0005}
+	\label{fig:svm_log}
+\end{figure}
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\columnwidth]{../plots/quad_svm_log.png}
+	\caption{Training and test errors on an instance of regularized logistic classifier with quadratic feature extraction with 2.7 as $\eta$ and $\lambda$ equal to 0.0005}
+	\label{fig:quad_svm_log}
+\end{figure}
+
+\subsection{Kernel SVM}
+\paragraph{Polynomial kernel}
+For the polynomial kernel version of Pegasos for SVMs, the procedure of hyperparameters selection is quite similar to the one adopted until now. At first, a grid search is run considering degrees $d$ from 2 to 10, $\lambda$ values are picked from a geometric sequence of powers of $10$ in range $[10^{-3}, 10^2]$. The obtained loss considering 2000 iterations is 0.2013, $d=4$ and $\lambda=0.001$. For the second run, the grid search considers degrees between 3 and 5 and 5 equidistant $\lambda$ values between 0.0005 and 0.003. The resulting loss didn't change, the selected degree is still 4 and $\lambda=0.0005$. Figure \ref{fig:kpoly_svm.png} reports errors on an instance trained in 40000 iterations with the parameters obtained before. The errors through the iterations are overall descending, but there are visible spikes, suggesting that a high number of iterations are needed for reaching a more stable region in the descent. However, even training a model with 40000 iterations turned out to be costly in terms of time.
+
+\paragraph{Gaussian kernel}
+For tuning parameters for the Gaussian kernel version of Pegasos, a first run of grid search is performed by considering $\gamma$ and $\lambda$ values in a geometric sequence of powers of $10$ in the interval $[10^{-3}, 10^2]$. With 2000 iterations, the best parameters found are $\gamma=1$ and $\lambda=0.001$ and an error of 0.179. For the second run, The considered $\gamma$ values are 5 equidistant values in the interval $[0.4, 2]$, while for $\lambda$ they are 5 equidistant values in the interval $[0.0003, 0.0015]$. Performing 2000 iterations of Pegasos, the best loss obtained is 0.1723 with parameters $\gamma=0.8$ and $\lambda=0.0003$. An instance of SVM with Gaussian kernel using the parameters found with the second run of grid search, trained with 30000 iterations is shown in figure \ref{fig:kgauss_svm.png}.
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\columnwidth]{../plots/kpoly_svm.png}
+	\caption{Training and test errors on an instance of SVM with polynomial kernel of degree 4 and $\lambda=0.0005$}
+	\label{fig:kpoly_svm.png}
+\end{figure}
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\columnwidth]{../plots/kgauss_svm.png}
+	\caption{Training and test errors on an instance of SVM with Gaussian kernel with $\gamma=0.8$ and $\lambda=0.0003$}
+	\label{fig:kgauss_svm.png}
+\end{figure}
+
+\section{Conclusions}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=\columnwidth]{../plots/time_perceptron.png}
+	\caption{Training and prediction times comparisons between perceptron and kernel perceptron}
+	\label{fig:time_perceptron}
+\end{figure}
+\begin{figure}
+	\centering
+	\includegraphics[width=\columnwidth]{../plots/time_svm.png}
+	\caption{Training and prediction times comparisons between Pegasos and kernel Pegasos}
+	\label{fig:time_svm}
+\end{figure}
+
+The dataset considered is almost certainly non-linearly separable, as the perceptron algorithm never converged during the experiments, while keeping an error quite stable around the same values through the epochs. Furthermore, the SVM predictors didn't find the separating hyperplane too, even if they were capable of creating more reliable predictors than the perceptron, both optimizing the hinge loss and the logistic loss. The use of quadratic extraction and kernel functions showed a huge improvement on the quality of predictions, with errors approaching to 0; in particular, the polynomial kernel with $d=4$ seemed to better describe the curve separating the two class for the considered problem, both with the perceptron and SVM. The gaussian kernel seemed more prone to overfitting, with a larger gap between test and training errors, even with not too small values of $\gamma$. 
+
+The kernelized versions of the considered algorithms turned out to be far more complex in terms of training and prediction times with respect to their basic versions. The comparison between the perceptron and kernel perceptron is shown in figure \ref{fig:time_perceptron}\footnote{The times shown here and in the following are measured on a Ryzen 5 4500u with 8GB of RAM running Arch Linux with kernel 6.10.2-zen1-1-zen. The version of the Python interpreter is 3.12.4}.
+The kernelized version shows a steeper curve for the training times, but, most importantly, the basic perceptron prediction times don't depend on the number of epochs, as it's sufficient to compute it from the vector weight whose size depends only on the number of features. The kernel perceptron, on the other hand, needs to keep a set of points that can grow unbounded and that needs to be scanned for each prediction.
+A similar observation can be made for SVM: in this case, as it can be seen from figure \ref{fig:time_svm}, the steepness of prediction times of kernel SVM is even higher than the kernel perceptron.
+
+This shows that with better predicting capabilities on non-linearly separable datasets, the kernelized algorithms come also with less scalability, which also prevented a better exploration of the hyperparameters spaces, the convergence of the stochastic gradient descent towards the minimum of the SVM objective function or to find a separating curve (in case there is) if considering the perceptron in a reasonable amount of time.
 
 \end{document}
