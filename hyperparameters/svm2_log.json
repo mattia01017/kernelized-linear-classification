@@ -1,1 +1,1 @@
-{"params": {"epochs_per_step": 18000, "learning_rate": 30, "regularization": 0.0015, "loss_func": "logistic"}, "loss": 0.27759999999999996}
+{"params": {"epochs_per_step": 18000, "learning_rate": 100, "regularization": 0.0005, "loss_func": "logistic"}, "loss": 0.2786}
