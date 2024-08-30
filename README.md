@@ -10,5 +10,5 @@ Project 1: Kernelized Linear Classification
 - **experiments**: contains the results in JSON format of the experiments performed in src/analysis.ipynb
 - **hyperparameters**: contains the resulting hyperparameters after grid searches performed in src/analysis.ipynb
 - **predictor_dumps**: contains the attributes (weights, epochs, ...) of the best performing non-kernelized models generated during the experiments
-- **tex**: contains the report, both the .tex source and .pdf
+- **docs**: contains the report, both the .tex source and .pdf
 - **plots**: contains all the generated figures, included also in the report

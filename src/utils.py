@@ -1,4 +1,3 @@
-from functools import reduce
 from math import sqrt
 from typing import Sequence, Iterable
 from datatypes import Label, DataPoint

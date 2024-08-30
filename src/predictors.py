@@ -1,6 +1,5 @@
-import json
 from math import log, sqrt, exp
-from utils import dot_prod, scalar_prod, norm
+from utils import dot_prod, scalar_prod
 from datatypes import Label, DataPoint, BinaryClassifier
 from typing import Literal, Callable
 import random
